@@ -1,82 +1,80 @@
+import { Component, JSXElement, createSignal, onMount } from 'solid-js';
 import { appWindow } from "@tauri-apps/api/window";
-import { Focusable, useFocusManager } from "./FocusManager";
-import React, { useEffect, useState } from "react";
-import { useInput } from "./InputManager";
+import { Focusable, getCurrent, rootFocusable } from "./FocusManager";
+import InputVisualiser from "./InputVisualiser";
+import { registerKeyboardListeners, setGamepadInput } from './InputManager';
 
-function FocusableButton({ 
-  onClick, children, parentFocusable, idx
-}: {
+const FocusableButton: Component<{
   onClick: () => void, 
-  children: React.ReactNode, parentFocusable: Focusable, idx: number }) {
+  children: JSXElement, parentFocusable: Focusable, idx: number 
+}> = (props) => {
 
   return (
     <button 
-      onClick={onClick}
+      onClick={props.onClick}
       ref={(element) => {
-
-        if (!parentFocusable) return;
-
         if (!element) {
           // remove from parent
           // delete parentFocusable.children[idx];
         } else {
-          parentFocusable.children[idx] = {
-            key: idx,
+          props.parentFocusable.children[props.idx] = {
+            idx: props.idx,
             element,
-            parent: parentFocusable,
+            parent: props.parentFocusable,
+            dir: "row",
             children: {},
-            getPath: () => parentFocusable.getPath() + `/${idx}`,
+            getPath: () => props.parentFocusable.getPath() + `/${props.idx}`,
             onDown: () => element.click(),
           };
         }
       }} 
-      className="active:text-rose-500 focus:outline-2 p-2 bg-indigo-200 rounded"
+      class="active:text-rose-500 focus:outline-2 p-2 bg-indigo-200 rounded"
     >
-      {children}
+      {props.children}
     </button>
   );
 }
 
-function FocusableSection({ children, parentFocusable, idx, dir = "row", skip = false, }: { 
-  children: (parent: Focusable) => React.ReactNode, parentFocusable: Focusable, idx: number,
-  dir?: "row" | "column", skip?: boolean
- }) {
-
-  const { current } = useFocusManager();
+const FocusableSection: Component<{ 
+  children: (parent: Focusable) => JSXElement, parentFocusable: Focusable, idx: number,
+  dir: "row" | "column", skip?: boolean
+}> = (props) => {
+  if (!props.parentFocusable) console.log("No parentFocusable", props.idx);
 
   const focusable: Focusable = {
-    key: idx,
+    idx: props.idx,
     element: null,
-    parent: parentFocusable,
-    getPath: () => parentFocusable.getPath() + `/${idx}`,
-    skip,
+    parent: props.parentFocusable,
+    dir: props.dir,
+    getPath: () => props.parentFocusable.getPath() + `/${props.idx}`,
+    skip: props.skip,
     children: {},
   };
   // console.log("FocusableSection", focusable.getPath(), current?.getPath());
-  const inFocus = current?.getPath() === focusable.getPath();
+  const inFocus = getCurrent()?.getPath() === focusable.getPath();
 
   return (
     <section
-      className={`p-2 bg-gradient-to-br from-slate-200/50 to-slate-400/50 rounded flex gap-2 ${dir === "row" ? "flex-row" : "flex-col"} ${inFocus ? "outline outline-4 outline-indigo-500" : ""}`}
+      class={`p-2 bg-gradient-to-br from-slate-200/50 to-slate-400/50 rounded flex gap-2 ${props.dir === "row" ? "flex-row" : "flex-col"} ${inFocus ? "outline outline-4 outline-indigo-500" : ""}`}
       
       ref={(element) => {
-        if (!parentFocusable || !element) return;
+        if (!element) return;
         focusable.element = element;
-        parentFocusable.children[idx] = focusable;
+        props.parentFocusable.children[props.idx] = focusable;
       }}
     >
-      {children(focusable)}
+      {props.children(focusable)}
     </section>
   );
 
 }
 
 function App() {
-  const { root } = useFocusManager();
-  const { setGamepadInput } = useInput();
-  const [lastPressed, setLastPressed] = useState<string | null>(null);
+  const [lastPressed, setLastPressed] = createSignal<string | null>(null);
 
-  useEffect(() => {
+  onMount(() => {
+    const unlistenKeyboard = registerKeyboardListeners()
+
     const fn = async () => {
       const unlisten = await appWindow.listen("controller-input", (event: any) => {
          setGamepadInput(event.payload.button, event.payload.event === "pressed");
@@ -89,48 +87,74 @@ function App() {
 
     return () => {
       unlisten.then((fn) => fn());
+      unlistenKeyboard();
     }
-  }, [root, setGamepadInput])
+  })
 
   return (
-    <div className="m-2">
-      <div className="p-2 bg-gradient-to-br from-slate-200 to-slate-400 rounded">
-        <h1 className="text-2xl">
-          Tauri + React controller input
+    <div class="m-2">
+      <div class="p-2 bg-gradient-to-br from-slate-200 to-slate-400 rounded">
+        <h1 class="text-2xl">
+          Tauri + SolidJS controller input
         </h1>
+      </div>
+      <div class="m-2">
+        <InputVisualiser />
       </div>
       <FocusableSection
         idx={0}
-        parentFocusable={root}
-        dir="column"
+        parentFocusable={rootFocusable}
+        dir="row"
         skip
       >{parent => (<>
         <FocusableSection
           idx={0}
           parentFocusable={parent}
           dir="column"
-        >
-          {parent => (<>
-            <FocusableButton idx={0} onClick={() => setLastPressed("1")} parentFocusable={parent}>Button 1</FocusableButton>
-            <FocusableButton idx={1} onClick={() => setLastPressed("2")} parentFocusable={parent}>Button 2</FocusableButton>
-            <FocusableButton idx={2} onClick={() => setLastPressed("3")} parentFocusable={parent}>Button 3</FocusableButton>
-            <FocusableButton idx={3} onClick={() => setLastPressed("4")} parentFocusable={parent}>Button 4</FocusableButton>
-          </>)}
-        </FocusableSection>
+          skip
+        >{parent => (<>
+          <FocusableSection
+            idx={0}
+            parentFocusable={parent}
+            dir="column"
+            skip
+          >
+            {parent => (<>
+              <FocusableButton idx={0} onClick={() => setLastPressed("1")} parentFocusable={parent}>Button 1</FocusableButton>
+              <FocusableButton idx={1} onClick={() => setLastPressed("2")} parentFocusable={parent}>Button 2</FocusableButton>
+              <FocusableButton idx={2} onClick={() => setLastPressed("3")} parentFocusable={parent}>Button 3</FocusableButton>
+              <FocusableButton idx={3} onClick={() => setLastPressed("4")} parentFocusable={parent}>Button 4</FocusableButton>
+            </>)}
+          </FocusableSection>
+          <FocusableSection
+            idx={1}
+            parentFocusable={parent}
+            dir="row"
+            skip
+          >
+            {parent => (<>
+              <FocusableButton idx={0} onClick={() => setLastPressed("5")} parentFocusable={parent}>Button 5</FocusableButton>
+              <FocusableButton idx={1} onClick={() => setLastPressed("6")} parentFocusable={parent}>Button 6</FocusableButton>
+              <FocusableButton idx={2} onClick={() => setLastPressed("7")} parentFocusable={parent}>Button 7</FocusableButton>
+              <FocusableButton idx={3} onClick={() => setLastPressed("8")} parentFocusable={parent}>Button 8</FocusableButton>
+            </>)}
+          </FocusableSection>
+        </>)}</FocusableSection>
         <FocusableSection
           idx={1}
           parentFocusable={parent}
-          dir="row"
+          dir="column"
+          skip
         >
           {parent => (<>
-            <FocusableButton idx={0} onClick={() => setLastPressed("5")} parentFocusable={parent}>Button 5</FocusableButton>
-            <FocusableButton idx={1} onClick={() => setLastPressed("6")} parentFocusable={parent}>Button 6</FocusableButton>
-            <FocusableButton idx={2} onClick={() => setLastPressed("7")} parentFocusable={parent}>Button 7</FocusableButton>
-            <FocusableButton idx={3} onClick={() => setLastPressed("8")} parentFocusable={parent}>Button 8</FocusableButton>
+            <FocusableButton idx={0} onClick={() => setLastPressed("A")} parentFocusable={parent}>Button A</FocusableButton>
+            <FocusableButton idx={1} onClick={() => setLastPressed("B")} parentFocusable={parent}>Button B</FocusableButton>
+            <FocusableButton idx={2} onClick={() => setLastPressed("C")} parentFocusable={parent}>Button C</FocusableButton>
+            <FocusableButton idx={3} onClick={() => setLastPressed("D")} parentFocusable={parent}>Button D</FocusableButton>
           </>)}
         </FocusableSection>
       </>)}</FocusableSection>
-      <div>{lastPressed}</div>
+      <div class="text-indigo-200">{lastPressed()}</div>
     </div>
   );
 }

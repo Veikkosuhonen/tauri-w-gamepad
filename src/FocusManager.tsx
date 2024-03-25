@@ -1,126 +1,168 @@
-import { Context, createContext, useContext, useEffect, useState } from "react";
+import { createSignal } from "solid-js";
 
 export type Focusable = {
   element: HTMLElement|null;
   parent: Focusable | null;
-  children: { [key: number|string]: Focusable };
-  key: number|string;
+  children: { [key: number]: Focusable };
+  dir: "row" | "column";
+  idx: number;
   skip?: boolean;
   getPath(): string;
   onDown?: () => void;
 };
 
-type FocusManager = {
-  root: Focusable;
-  current: Focusable | null;
-  next(): void;
-  previous(): void;
-  up(): void;
-  down(): void;
-  into(): void;
-  out(): void;
+export const rootFocusable: Focusable = {
+  element: null,
+  parent: null,
+  children: {},
+  dir: "row",
+  idx: 0,
+  getPath: () => "",
 };
 
-const focusContext = createContext<FocusManager | null>(null);
+export const [getCurrent, setCurrent] = createSignal<Focusable>(rootFocusable);
+// Debounce
+const [lastActionTime, setLastActionTime] = createSignal<number>(Date.now());
 
-export const useFocusManager = () => {
-  const focusManager = useContext(focusContext);
-  if (!focusManager) {
-    throw new Error("useFocusManager must be used within a FocusProvider");
+const checkDebounce = () => {
+  const now = Date.now();
+  if (now - lastActionTime() < 50) {
+    return true;
   }
-  return focusManager;
+  setLastActionTime(now);
+  return false;
 }
 
-export const FocusProvider = ({ children, root }: { children: React.ReactNode, root: Focusable }) => {
-  const [current, setCurrent] = useState<Focusable>(root);
-  // Debounce
-  const [lastActionTime, setLastActionTime] = useState<number>(Date.now());
-
-  const checkDebounce = () => {
-    const now = Date.now();
-    if (now - lastActionTime < 50) {
-      return true;
-    }
-    setLastActionTime(now);
-    return false;
-  }
-
-  const debounce = (fn: () => void) => () => {
-    if (checkDebounce()) return;
-    fn();
-  }
-
-  const focusOn = (focusElement: Focusable) => {
-    if (current.element) current.element.blur();
-
-    console.log("Focusing on", focusElement);
-    setCurrent(focusElement);
-
-    if (!focusElement.element) return;
-    focusElement.element.focus();
-    focusElement.element.scrollIntoView({ behavior: "smooth", block: "center" });
-  }
-
-  const next = debounce(() => {
-
-    if (current.parent && typeof current.key === "number") {
-      const nextIdx = current.key + 1;
-      console.log("Focusing to", nextIdx)
-
-      console.log(nextIdx, current.parent.children[nextIdx]);
-      if (current.parent.children[nextIdx]) {
-        focusOn(current.parent.children[nextIdx]);
-      }
-    }else {
-      console.log("No parent or key", current);
-    }
-  });
-
-  const previous = debounce(() => {
-    
-
-    if (current.parent && typeof current.key === "number") {
-      const previousIdx = current.key - 1;
-      console.log("Focusing to", previousIdx)
-      if (current.parent.children[previousIdx]) {
-        focusOn(current.parent.children[previousIdx]);
-      }
-    } else {
-      console.log("No parent or key", current);
-    }
-  });
-
-  const out = debounce(() => {
-
-    console.log("up to", current.parent);
-    let next = current.parent;
-    while (next && next.skip) {
-      next = next.parent;
-    }
-    if (next) {
-      focusOn(next);
-    }
-  });
-
-  const into = debounce(() => {
-    console.log("down to", current.children[0]);
-
-    if (current.onDown) {
-      current.onDown();
-    }
-
-    let next = current.children[0];
-    while (next && next.skip) {
-      next = next.children[0];
-    }
-    if (next) {
-      focusOn(next);
-    }
-  })
-
-  return (
-    <focusContext.Provider value={{ root, current, next, previous, out, into, down: () => {}, up: () => {} }}>
-      {children}
-    </focusContext.Provider>
-  );
+const debounce = (fn: () => void) => () => {
+  if (checkDebounce()) return;
+  fn();
 }
+
+const focusOn = (focusElement: Focusable) => {
+  const current = getCurrent();
+  if (current.element) current.element.blur();
+
+  console.log("Focusing on", focusElement);
+  if (!focusElement.parent) console.log("No parent", focusElement);
+  setCurrent(focusElement);
+
+  if (!focusElement.element) return;
+  focusElement.element.focus();
+  focusElement.element.scrollIntoView({ behavior: "smooth", block: "center" });
+}
+
+const focusOnNextActive = (focusElement: Focusable) => {
+  const next = focusElement.skip ? getNextActiveChild(focusElement) : focusElement;
+  if (next) {
+    focusOn(next);
+  }
+}
+
+const moveInParent = (focusElement: Focusable, dir: "up" | "down" | "left" | "right"): Focusable|undefined => {
+  if (!focusElement.parent) return;
+  const parent = focusElement.parent;
+  const idx = focusElement.idx;
+  const nextRowIdx = idx + (dir === "left" ? -1 : dir === "right" ? 1 : 0);
+  const nextColIdx = idx + (dir === "up" ? -1 : dir === "down" ? 1 : 0);
+
+  const isRowOutOfBounds = !parent.children[nextRowIdx];
+  const isColOutOfBounds = !parent.children[nextColIdx];
+
+  if (dir === "up") {
+    if (parent.dir !== "column" || isColOutOfBounds) {
+      return moveInParent(parent, dir);
+    }
+    return parent.children[nextColIdx];
+  } else if (dir === "down") {
+    if (parent.dir !== "column" || isColOutOfBounds) {
+      return moveInParent(parent, dir);
+    }
+    return parent.children[nextColIdx];
+  } else if (dir === "left") {
+    if (parent.dir !== "row" || isRowOutOfBounds) {
+      return moveInParent(parent, dir);
+    }
+    return parent.children[nextRowIdx];
+  } else if (dir === "right") {
+    if (parent.dir !== "row" || isRowOutOfBounds) {
+      return moveInParent(parent, dir);
+    }
+    return parent.children[nextRowIdx];
+  }
+}
+
+const getNextActiveParent = (focusElement: Focusable) => {
+  let next = focusElement.parent;
+  while (next && next.skip) {
+    next = next.parent;
+  }
+  return next;
+}
+
+const getNextActiveChild = (focusElement: Focusable) => {
+  let next = focusElement.children[0];
+  while (next && next.skip) {
+    next = next.children[0];
+  }
+  return next;
+}
+
+const up = () => {
+  const current = getCurrent();
+  const next = moveInParent(current, "up");
+  if (next) {
+    focusOnNextActive(next);
+  }
+};
+
+const down = () => {
+  const current = getCurrent();
+  const next = moveInParent(current, "down");
+  if (next) {
+    focusOnNextActive(next);
+  }
+};
+
+const right = () => {
+  const current = getCurrent();
+  const next = moveInParent(current, "right");
+  if (next) {
+    focusOnNextActive(next);
+  }
+};
+
+const left = () => {
+  const current = getCurrent();
+  const next = moveInParent(current, "left");
+  if (next) {
+    focusOnNextActive(next);
+  }
+};
+
+const out = () => {
+  const next = getNextActiveParent(getCurrent());
+  if (next) {
+    focusOn(next);
+  }
+};
+
+const into = () => {
+  const current = getCurrent();
+  if (current.onDown) {
+    current.onDown();
+  }
+
+  const next = getNextActiveChild(current);
+  if (next) {
+    focusOn(next);
+  }
+}
+
+export const focusManager = {
+  up: debounce(up),
+  down: debounce(down),
+  left: debounce(left),
+  right: debounce(right),
+  into: debounce(into),
+  out: debounce(out),
+};

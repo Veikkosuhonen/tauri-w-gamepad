@@ -1,5 +1,5 @@
-import React from "react";
-import { useFocusManager } from "./FocusManager";
+import { createSignal } from "solid-js";
+import { focusManager } from "./FocusManager";
 
 type Mapping = {
   [key: string]: string;
@@ -17,16 +17,21 @@ const GamepadMapping: Mapping = {
 };
 
 const KeyboardMapping: Mapping = {
+  "ArrowUp": "up",
+  "ArrowDown": "down",
+  "ArrowLeft": "left",
+  "ArrowRight": "right",
   "w": "up",
   "s": "down",
   "a": "left",
   "d": "right",
-  " ": "south",
+  "e": "south",
   "Enter": "south",
   "Esc": "east",
   "Backspace": "east",
-  "e": "tab_right",
-  "q": "tab_left",
+  "q": "east",
+  // "e": "tab_right",
+  // "q": "tab_left",
 };
 
 
@@ -34,78 +39,47 @@ type InputState = {
   [key: string]: boolean;
 }
 
-type InputContext = {
-  input: InputState;
-  setGamepadInput: (deviceKey: string, value: boolean) => void;
-  setKeyboardInput: (key: string, value: boolean) => void;
+export const [input, setInput] = createSignal<InputState>({});
+
+const updateFocus = (partialInput: InputState) => {
+  if (partialInput.up)    focusManager.up();
+  if (partialInput.down)  focusManager.down();
+  if (partialInput.left)  focusManager.left();
+  if (partialInput.right) focusManager.right();
+  if (partialInput.south) focusManager.into();
+  if (partialInput.east)  focusManager.out();
 }
 
-const inputContext = React.createContext<InputContext | null>(null);
-
-export const useInput = () => {
-  const input = React.useContext(inputContext);
-  if (!input) {
-    throw new Error("useInput must be used within a InputProvider");
-  }
-  return input;
+export const setGamepadInput = (key: string, value: boolean) => {
+  const mappedKey = GamepadMapping[key];
+  if (!mappedKey) return;
+  console.log(key, mappedKey, value)
+  setInput((prev) => ({ ...prev, [mappedKey]: value }));
+  updateFocus({ [mappedKey]: value });
 }
 
-export const InputProvider = ({ children }: { children: React.ReactNode }) => {
-  const [input, setInput] = React.useState<InputState>({});
-  const { next, previous, up, down, into, out } = useFocusManager();
-
-  const updateFocus = (partialInput: InputState) => {
-    if (partialInput.up) up();
-    if (partialInput.down) down();
-    if (partialInput.left) previous();
-    if (partialInput.right) next();
-    if (partialInput.south) into();
-    if (partialInput.east) out();
-  }
-
-  const setGamepadInput = (key: string, value: boolean) => {
-    const mappedKey = GamepadMapping[key];
-    if (!mappedKey) return;
-    console.log(key, mappedKey, value)
-    setInput((prev) => ({ ...prev, [mappedKey]: value }));
-    updateFocus({ [mappedKey]: value });
-  }
-
-  const setKeyboardInput = (key: string, value: boolean) => {
-    const mappedKey = KeyboardMapping[key];
-    if (!mappedKey) return;
-    if (mappedKey ==="south" && value) into();
-    console.log(key, mappedKey, value)
-    setInput((prev) => ({ ...prev, [mappedKey]: value }));
-    updateFocus({ [mappedKey]: value });
-  }
-
-  const onKeyDown = (e: KeyboardEvent) => {
-    e.stopPropagation();
-    setKeyboardInput(e.key, true);
-  }
-
-  const onKeyUp = (e: KeyboardEvent) => {
-    e.stopPropagation();
-    setKeyboardInput(e.key, false);
-  }
-
-  React.useEffect(() => {
-    window.addEventListener("keydown", onKeyDown);
-    window.addEventListener("keyup", onKeyUp);
-    return () => {
-      window.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("keyup", onKeyUp);
-    }
-  }, []);
-
-  return (
-    <inputContext.Provider value={{
-      setGamepadInput,
-      setKeyboardInput,
-      input
-    }}>
-      {children}
-    </inputContext.Provider>
-  );
+const setKeyboardInput = (key: string, value: boolean) => {
+  const mappedKey = KeyboardMapping[key];
+  if (!mappedKey) return;
+  setInput((prev) => ({ ...prev, [mappedKey]: value }));
+  updateFocus({ [mappedKey]: value });
 }
+
+const onKeyDown = (e: KeyboardEvent) => {
+  e.stopPropagation();
+  setKeyboardInput(e.key, true);
+}
+
+const onKeyUp = (e: KeyboardEvent) => {
+  e.stopPropagation();
+  setKeyboardInput(e.key, false);
+}
+
+export const registerKeyboardListeners = () => {
+  window.addEventListener("keydown", onKeyDown);
+  window.addEventListener("keyup", onKeyUp);
+  return () => {
+    window.removeEventListener("keydown", onKeyDown);
+    window.removeEventListener("keyup", onKeyUp);
+  }
+};
