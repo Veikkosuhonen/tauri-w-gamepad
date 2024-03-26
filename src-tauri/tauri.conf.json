@@ -15,19 +15,20 @@
       "shell": {
         "all": false,
         "open": true
+      },
+      "window": {
+        "all": false,
+        "close": true,
+        "hide": true,
+        "show": true,
+        "maximize": true,
+        "minimize": true,
+        "unmaximize": true,
+        "unminimize": true,
+        "startDragging": true
       }
     },
     "macOSPrivateApi": true,
-    "windows": [
-      {
-        "title": "mission-ctrl",
-        "width": 900,
-        "height": 700,
-        "resizable": true,
-        "transparent": true,
-        "decorations": true
-      }
-    ],
     "security": {
       "csp": null
     },

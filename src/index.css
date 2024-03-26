@@ -7,6 +7,17 @@ body {
   background: transparent;
 }
 
+body {
+	height: 100vh;
+	width: 100vw;
+	overflow-y: hidden;
+	padding: 0;
+
+	/* optimise font rendering */
+	-webkit-font-smoothing: antialiased;
+	text-rendering: optimizeLegibility;
+}
+
 @layer base {
   @font-face {
     font-family: 'Orbitron';

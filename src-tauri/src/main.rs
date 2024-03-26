@@ -169,10 +169,42 @@ async fn run_gh_cli(args: Vec<String>) -> Result<String, String> {
     Ok(stdout)
 }
 
+#[cfg(not(target_os = "macos"))]
+fn create_window(handle: &tauri::AppHandle) -> tauri::Result<tauri::Window> {
+    let app_title = handle.package_info().name.clone();
+    let window =
+        tauri::WindowBuilder::new(handle, "main", tauri::WindowUrl::App("index.html".into()))
+            .resizable(true)
+            .title(app_title)
+            .disable_file_drop_handler()
+            .min_inner_size(800.0, 600.0)
+            .inner_size(1160.0, 720.0)
+            .transparent(true)
+            .build()?;
+    Ok(window)
+}
+
+#[cfg(target_os = "macos")]
+fn create_window(handle: &tauri::AppHandle) -> tauri::Result<tauri::Window> {
+    let window =
+        tauri::WindowBuilder::new(handle, "main", tauri::WindowUrl::App("index.html".into()))
+            .resizable(true)
+            .title(handle.package_info().name.clone())
+            .min_inner_size(800.0, 600.0)
+            .inner_size(1160.0, 720.0)
+            .hidden_title(true)
+            .disable_file_drop_handler()
+            .title_bar_style(tauri::TitleBarStyle::Overlay)
+            .transparent(true)
+            .build()?;
+    Ok(window)
+}
+
 fn main() {
-    tauri::Builder::default()
-        .setup(|app| {
-            let window = app.get_window("main").unwrap();
+    let builder = tauri::Builder::default();
+
+    builder.setup(move |app| {
+            let window = create_window(&app.handle()).expect("Failed to create window");
 
             #[cfg(target_os = "macos")]
             apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None).expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
