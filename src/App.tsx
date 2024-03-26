@@ -1,4 +1,4 @@
-import { Component, JSXElement, createResource, createSignal, onMount } from 'solid-js';
+import { Component, For, JSXElement, createResource, createSignal, onMount } from 'solid-js';
 import { appWindow } from "@tauri-apps/api/window";
 import { Focusable, focusManager, getCurrent, rootFocusable } from "./FocusManager";
 import InputVisualiser from "./InputVisualiser";
@@ -39,7 +39,7 @@ const FocusableButton: Component<{
           props.parentFocusable.children[props.idx] = self as Focusable;
         }
       }}
-      class='p-1 border border-solid border-stone-500 rounded-md text-white'
+      class='p-1 border border-solid border-stone-500 rounded-md text-white text-left'
       classList={{
         'bg-stone-600': getCurrent().getPath() === self.getPath(),
       }}
@@ -80,19 +80,28 @@ const FocusableSection: Component<{
   );
 }
 
-const Repos = () => {
+const Repos: Component<{
+  parent: Focusable
+}> = (props) => {
   const [repos] = createResource(() => GH.getRepos("Veikkosuhonen"));
 
   return (
-    <div>
+    <>
       {repos.loading && <p>Loading...</p>}
       {repos.error && <p>Error: {repos.error.message}</p>}
-      {repos() && (
-        <p class="text-white text-sm whitespace-pre-line">
-          {repos()}
-        </p>
-      )}
-    </div>
+      <For each={repos()}>{(repo, idx) => (
+        <FocusableButton idx={idx()} onClick={() => console.log(repo)} parentFocusable={props.parent}>
+          <div>
+            <h3 class="font-bold">
+              {repo.name}
+            </h3>
+            <p class="text-sm">
+              {repo.description}
+            </p>
+          </div>
+        </FocusableButton>
+      )}</For>
+    </>
   );
 }
 
@@ -119,68 +128,19 @@ function App() {
   })
 
   return (
-    <div
-      class="flex flex-col h-screen w-screen" 
-      // style="background: radial-gradient(circle, rgba(89,21,21,1) 72%, rgba(73,15,15,1) 90%, rgba(54,12,12,1) 100%);"
-      >
+    <div>
       <div class="m-2">
         <InputVisualiser />
       </div>
       <FocusableSection
         idx={0}
         parentFocusable={rootFocusable}
-        dir="row"
+        dir="column"
         skip
       >{parent => (<>
-        <FocusableSection
-          idx={0}
-          parentFocusable={parent}
-          dir="column"
-          skip
-        >{parent => (<>
-          <FocusableSection
-            idx={0}
-            parentFocusable={parent}
-            dir="column"
-            skip
-          >
-            {parent => (<>
-              <FocusableButton idx={0} onClick={() => setLastPressed("1")} parentFocusable={parent}>Button 1</FocusableButton>
-              <FocusableButton idx={1} onClick={() => setLastPressed("2")} parentFocusable={parent}>Button 2</FocusableButton>
-              <FocusableButton idx={2} onClick={() => setLastPressed("3")} parentFocusable={parent}>Button 3</FocusableButton>
-              <FocusableButton idx={3} onClick={() => setLastPressed("4")} parentFocusable={parent}>Button 4</FocusableButton>
-            </>)}
-          </FocusableSection>
-          <FocusableSection
-            idx={1}
-            parentFocusable={parent}
-            dir="row"
-            skip
-          >
-            {parent => (<>
-              <FocusableButton idx={0} onClick={() => setLastPressed("5")} parentFocusable={parent}>Button 5</FocusableButton>
-              <FocusableButton idx={1} onClick={() => setLastPressed("6")} parentFocusable={parent}>Button 6</FocusableButton>
-              <FocusableButton idx={2} onClick={() => setLastPressed("7")} parentFocusable={parent}>Button 7</FocusableButton>
-              <FocusableButton idx={3} onClick={() => setLastPressed("8")} parentFocusable={parent}>Button 8</FocusableButton>
-            </>)}
-          </FocusableSection>
-        </>)}</FocusableSection>
-        <FocusableSection
-          idx={1}
-          parentFocusable={parent}
-          dir="column"
-          skip
-        >
-          {parent => (<>
-            <FocusableButton idx={0} onClick={() => setLastPressed("A")} parentFocusable={parent}>Button A</FocusableButton>
-            <FocusableButton idx={1} onClick={() => setLastPressed("B")} parentFocusable={parent}>Button B</FocusableButton>
-            <FocusableButton idx={2} onClick={() => setLastPressed("C")} parentFocusable={parent}>Button C</FocusableButton>
-            <FocusableButton idx={3} onClick={() => setLastPressed("D")} parentFocusable={parent}>Button D</FocusableButton>
-          </>)}
-        </FocusableSection>
+        <Repos parent={parent} />
       </>)}</FocusableSection>
       <div class="text-indigo-200">{lastPressed()}</div>
-      <Repos />
     </div>
   );
 }
