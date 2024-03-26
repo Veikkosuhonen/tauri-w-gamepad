@@ -1,9 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fmt::Display, sync::{Arc, Mutex}};
+use std::{fmt::Display, fs::File, io::BufReader, sync::{Arc, Mutex}};
 
 use gilrs::{ev::filter::{Jitter, Repeat, deadzone}, Axis, Button, Event, Filter, GilrsBuilder};
+use rodio::{cpal::platform::CoreAudioDevice, Decoder, Device, DeviceTrait, OutputStream, Source};
 use tauri::{ async_runtime, window, App, Manager, Window};
 
 
@@ -151,8 +152,22 @@ fn init_gamepad(window: Window) -> Result<(), String> {
             };
         }
     }
+}
 
+#[tauri::command]
+async fn play_gong_audio() -> Result<(), String> {
+    println!("Playing gong audio");
+    // Get a output stream handle to the default physical sound device
+    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
+    // Load a sound from a file, using a path relative to Cargo.toml
+    let file = BufReader::new(File::open("gong.ogg").unwrap());
+    // Decode that sound file into a source
+    let source = Decoder::new(file).unwrap();
+    println!("{}", source.sample_rate());
 
+    let _ = stream_handle.play_raw(source.convert_samples());
+    
+    Ok(())
 }
 
 fn main() {
@@ -164,6 +179,7 @@ fn main() {
             });
             Ok(())
         })
+        .invoke_handler(tauri::generate_handler![play_gong_audio])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

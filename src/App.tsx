@@ -3,6 +3,7 @@ import { appWindow } from "@tauri-apps/api/window";
 import { Focusable, getCurrent, rootFocusable } from "./FocusManager";
 import InputVisualiser from "./InputVisualiser";
 import { registerKeyboardListeners, setGamepadInput } from './InputManager';
+import { audio } from './audio';
 
 const FocusableButton: Component<{
   onClick: () => void, 
@@ -24,7 +25,11 @@ const FocusableButton: Component<{
             dir: "row",
             children: {},
             getPath: () => props.parentFocusable.getPath() + `/${props.idx}`,
-            onDown: () => element.click(),
+            onDown: () => {
+              element.click();
+              console.log("Playing gong audio");
+              audio.playGong();
+            },
           };
         }
       }} 
