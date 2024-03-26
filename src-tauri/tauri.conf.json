@@ -17,11 +17,15 @@
         "open": true
       }
     },
+    "macOSPrivateApi": true,
     "windows": [
       {
         "title": "mission-ctrl",
-        "width": 800,
-        "height": 600
+        "width": 900,
+        "height": 700,
+        "resizable": true,
+        "transparent": true,
+        "decorations": true
       }
     ],
     "security": {

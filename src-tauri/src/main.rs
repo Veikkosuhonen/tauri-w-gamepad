@@ -1,11 +1,10 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{fmt::Display, fs::File, io::BufReader, sync::{Arc, Mutex}};
 
-use gilrs::{ev::filter::{Jitter, Repeat, deadzone}, Axis, Button, Event, Filter, GilrsBuilder};
-use rodio::{cpal::platform::CoreAudioDevice, Decoder, Device, DeviceTrait, OutputStream, Source};
+use gilrs::{Axis, Button, Event, GilrsBuilder};
 use tauri::{ async_runtime, window, App, Manager, Window};
+use window_vibrancy::{apply_blur, apply_vibrancy, NSVisualEffectMaterial};
 
 
 fn btn_to_string(btn: Button) -> String {
@@ -155,31 +154,38 @@ fn init_gamepad(window: Window) -> Result<(), String> {
 }
 
 #[tauri::command]
-async fn play_gong_audio() -> Result<(), String> {
-    println!("Playing gong audio");
-    // Get a output stream handle to the default physical sound device
-    let (_stream, stream_handle) = OutputStream::try_default().unwrap();
-    // Load a sound from a file, using a path relative to Cargo.toml
-    let file = BufReader::new(File::open("gong.ogg").unwrap());
-    // Decode that sound file into a source
-    let source = Decoder::new(file).unwrap();
-    println!("{}", source.sample_rate());
+async fn run_gh_cli(args: Vec<String>) -> Result<String, String> {
+    println!("Running gh command: {:?}", args);
+    let mut cmd = std::process::Command::new("gh");
+    let output = cmd.args(args).output().expect("failed to execute gh command");
 
-    let _ = stream_handle.play_raw(source.convert_samples());
-    
-    Ok(())
+    let stdout = String::from_utf8(output.stdout).unwrap();
+    let stderr = String::from_utf8(output.stderr).unwrap();
+
+    if !stderr.is_empty() {
+        return Err(stderr);
+    }
+
+    Ok(stdout)
 }
 
 fn main() {
     tauri::Builder::default()
         .setup(|app| {
             let window = app.get_window("main").unwrap();
+
+            #[cfg(target_os = "macos")]
+            apply_vibrancy(&window, NSVisualEffectMaterial::HudWindow, None, None).expect("Unsupported platform! 'apply_vibrancy' is only supported on macOS");
+
+            #[cfg(target_os = "windows")]
+            apply_blur(&window, Some((18, 18, 18, 125))).expect("Unsupported platform! 'apply_blur' is only supported on Windows");
+
             async_runtime::spawn(async move {
                 init_gamepad(window).unwrap();
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![play_gong_audio])
+        .invoke_handler(tauri::generate_handler![run_gh_cli])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

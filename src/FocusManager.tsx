@@ -1,4 +1,5 @@
 import { createSignal } from "solid-js";
+import { audio } from "./audio";
 
 export type Focusable = {
   element: HTMLElement|null;
@@ -42,13 +43,12 @@ const focusOn = (focusElement: Focusable) => {
   const current = getCurrent();
   if (current.element) current.element.blur();
 
-  console.log("Focusing on", focusElement);
-  if (!focusElement.parent) console.log("No parent", focusElement);
   setCurrent(focusElement);
 
   if (!focusElement.element) return;
   focusElement.element.focus();
   focusElement.element.scrollIntoView({ behavior: "smooth", block: "center" });
+  audio.playFlick();
 }
 
 const focusOnNextActive = (focusElement: Focusable) => {
@@ -150,6 +150,7 @@ const into = () => {
   const current = getCurrent();
   if (current.onDown) {
     current.onDown();
+    current.element?.click();
   }
 
   const next = getNextActiveChild(current);
@@ -165,4 +166,5 @@ export const focusManager = {
   right: debounce(right),
   into: debounce(into),
   out: debounce(out),
+  focusOn,
 };

@@ -1,39 +1,48 @@
-import { Component, JSXElement, createSignal, onMount } from 'solid-js';
+import { Component, JSXElement, createResource, createSignal, onMount } from 'solid-js';
 import { appWindow } from "@tauri-apps/api/window";
-import { Focusable, getCurrent, rootFocusable } from "./FocusManager";
+import { Focusable, focusManager, getCurrent, rootFocusable } from "./FocusManager";
 import InputVisualiser from "./InputVisualiser";
 import { registerKeyboardListeners, setGamepadInput } from './InputManager';
 import { audio } from './audio';
+import { GH } from './github';
 
 const FocusableButton: Component<{
   onClick: () => void, 
   children: JSXElement, parentFocusable: Focusable, idx: number 
 }> = (props) => {
 
+  const self = {
+    idx: props.idx,
+    parent: props.parentFocusable,
+    dir: "row",
+    children: {},
+    getPath: () => props.parentFocusable.getPath() + `/${props.idx}`,
+    element: null as HTMLElement|null,
+    onDown: () => {
+      audio.playClick();
+      props.onClick();
+    },
+  };
+
   return (
     <button 
-      onClick={props.onClick}
+      onClick={() => {
+        self.onDown();
+        focusManager.focusOn(self as Focusable);
+      }}
       ref={(element) => {
         if (!element) {
           // remove from parent
           // delete parentFocusable.children[idx];
         } else {
-          props.parentFocusable.children[props.idx] = {
-            idx: props.idx,
-            element,
-            parent: props.parentFocusable,
-            dir: "row",
-            children: {},
-            getPath: () => props.parentFocusable.getPath() + `/${props.idx}`,
-            onDown: () => {
-              element.click();
-              console.log("Playing gong audio");
-              audio.playGong();
-            },
-          };
+          self.element = element;
+          props.parentFocusable.children[props.idx] = self as Focusable;
         }
-      }} 
-      class="active:text-rose-500 focus:outline-2 p-2 bg-indigo-200 rounded"
+      }}
+      class='p-1 border border-solid border-stone-500 rounded-md text-white'
+      classList={{
+        'bg-stone-600': getCurrent().getPath() === self.getPath(),
+      }}
     >
       {props.children}
     </button>
@@ -55,12 +64,10 @@ const FocusableSection: Component<{
     skip: props.skip,
     children: {},
   };
-  // console.log("FocusableSection", focusable.getPath(), current?.getPath());
-  const inFocus = getCurrent()?.getPath() === focusable.getPath();
 
   return (
     <section
-      class={`p-2 bg-gradient-to-br from-slate-200/50 to-slate-400/50 rounded flex gap-2 ${props.dir === "row" ? "flex-row" : "flex-col"} ${inFocus ? "outline outline-4 outline-indigo-500" : ""}`}
+      class={`p-2 flex gap-2 ${props.dir === "row" ? "flex-row" : "flex-col"}`}
       
       ref={(element) => {
         if (!element) return;
@@ -71,7 +78,22 @@ const FocusableSection: Component<{
       {props.children(focusable)}
     </section>
   );
+}
 
+const Repos = () => {
+  const [repos] = createResource(() => GH.getRepos("Veikkosuhonen"));
+
+  return (
+    <div>
+      {repos.loading && <p>Loading...</p>}
+      {repos.error && <p>Error: {repos.error.message}</p>}
+      {repos() && (
+        <p class="text-white text-sm whitespace-pre-line">
+          {repos()}
+        </p>
+      )}
+    </div>
+  );
 }
 
 function App() {
@@ -97,12 +119,10 @@ function App() {
   })
 
   return (
-    <div class="m-2">
-      <div class="p-2 bg-gradient-to-br from-slate-200 to-slate-400 rounded">
-        <h1 class="text-2xl">
-          Tauri + SolidJS controller input
-        </h1>
-      </div>
+    <div
+      class="flex flex-col h-screen w-screen" 
+      // style="background: radial-gradient(circle, rgba(89,21,21,1) 72%, rgba(73,15,15,1) 90%, rgba(54,12,12,1) 100%);"
+      >
       <div class="m-2">
         <InputVisualiser />
       </div>
@@ -160,6 +180,7 @@ function App() {
         </FocusableSection>
       </>)}</FocusableSection>
       <div class="text-indigo-200">{lastPressed()}</div>
+      <Repos />
     </div>
   );
 }
