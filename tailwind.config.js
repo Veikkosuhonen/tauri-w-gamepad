@@ -7,7 +7,7 @@ export default {
   theme: {
     extend: {},
     fontFamily: {
-      'sans': ['Orbitron', 'sans-serif'],
+      'sans': ['Ubuntu', 'sans-serif'],
     },
   },
   plugins: [],

@@ -2,28 +2,23 @@
 @tailwind components;
 @tailwind utilities;
 
-html,
 body {
-  background: transparent;
-}
-
-body {
-	height: 100vh;
-	width: 100vw;
-	overflow-y: hidden;
-	padding: 0;
-
 	/* optimise font rendering */
 	-webkit-font-smoothing: antialiased;
 	text-rendering: optimizeLegibility;
 }
 
+/* Disable focus ring */
+*:focus {
+  outline: none;
+}
+
 @layer base {
   @font-face {
-    font-family: 'Orbitron';
+    font-family: 'Ubuntu';
     font-style: normal;
-    font-weight: 500;
+    font-weight: 400;
     font-display: swap;
-    src: url(/fonts/Orbitron-VariableFont_wght.ttf) format('truetype');
+    src: url(/fonts/Ubuntu-Regular.ttf) format('truetype');
   }
 }

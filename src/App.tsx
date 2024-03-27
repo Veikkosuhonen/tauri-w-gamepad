@@ -1,10 +1,10 @@
-import { Component, For, JSXElement, createResource, createSignal, onMount } from 'solid-js';
+import { Component, For, JSXElement, Show, createResource, createSignal, onMount } from 'solid-js';
 import { appWindow } from "@tauri-apps/api/window";
 import { Focusable, focusManager, getCurrent, rootFocusable } from "./FocusManager";
 import InputVisualiser from "./InputVisualiser";
 import { registerKeyboardListeners, setGamepadInput } from './InputManager';
 import { audio } from './audio';
-import { GH } from './github';
+import { GH, GHRepo } from './github';
 
 const FocusableButton: Component<{
   onClick: () => void, 
@@ -39,9 +39,9 @@ const FocusableButton: Component<{
           props.parentFocusable.children[props.idx] = self as Focusable;
         }
       }}
-      class='p-1 border border-solid border-stone-500 rounded-md text-white text-left'
+      class='p-1 rounded-md text-stone-400 focus:text-stone-100 text-left focus:bg-stone-600/50'
       classList={{
-        'bg-stone-600': getCurrent().getPath() === self.getPath(),
+        '': getCurrent().getPath() === self.getPath(),
       }}
     >
       {props.children}
@@ -67,7 +67,7 @@ const FocusableSection: Component<{
 
   return (
     <section
-      class={`p-2 flex gap-2 ${props.dir === "row" ? "flex-row" : "flex-col"}`}
+      class={`p-1 flex gap-1 ${props.dir === "row" ? "flex-row" : "flex-col"}`}
       
       ref={(element) => {
         if (!element) return;
@@ -81,7 +81,8 @@ const FocusableSection: Component<{
 }
 
 const Repos: Component<{
-  parent: Focusable
+  parent: Focusable,
+  onSelect: (repo: GHRepo) => void
 }> = (props) => {
   const [repos] = createResource(() => GH.getRepos("Veikkosuhonen"));
 
@@ -90,12 +91,12 @@ const Repos: Component<{
       {repos.loading && <p>Loading...</p>}
       {repos.error && <p>Error: {repos.error.message}</p>}
       <For each={repos()}>{(repo, idx) => (
-        <FocusableButton idx={idx()} onClick={() => console.log(repo)} parentFocusable={props.parent}>
+        <FocusableButton idx={idx()} onClick={() => props.onSelect(repo)} parentFocusable={props.parent}>
           <div>
-            <h3 class="font-bold">
+            <h3 class="text-sm text-stone-300">
               {repo.name}
             </h3>
-            <p class="text-sm">
+            <p class="text-xs">
               {repo.description}
             </p>
           </div>
@@ -104,9 +105,31 @@ const Repos: Component<{
     </>
   );
 }
+const Issues: Component<{
+  parent: Focusable,
+  repo: GHRepo,
+  onSelect: (issueId: string) => void
+}> = (props) => {
+  const [issues] = createResource(() => GH.getIssues(props.repo.name, props.repo.owner));
 
+  return (
+    <>
+      {issues.loading && <p>Loading...</p>}
+      {issues.error && <p>Error: {issues.error.message}</p>}
+      <For each={issues()}>{(issue, idx) => (
+        <FocusableButton idx={idx()} onClick={() => props.onSelect(issue.id)} parentFocusable={props.parent}>
+          <div>
+            <h3 class="text-sm text-stone-300">
+              {issue.title}
+            </h3>
+          </div>
+        </FocusableButton>
+      )}</For>
+    </>
+  );
+}
 function App() {
-  const [lastPressed, setLastPressed] = createSignal<string | null>(null);
+  const [repo, setRepo] = createSignal<GHRepo|null>(null);
 
   onMount(() => {
     const unlistenKeyboard = registerKeyboardListeners()
@@ -128,19 +151,38 @@ function App() {
   })
 
   return (
-    <div>
-      <div class="m-2">
-        <InputVisualiser />
+    <div class="h-[100vh] flex flex-col items-stretch">
+      <div class="flex p-1 text-sm flex-1/8">
+        <p class="ml-32 text-stone-400">mission-ctrl</p>
       </div>
-      <FocusableSection
-        idx={0}
-        parentFocusable={rootFocusable}
-        dir="column"
-        skip
-      >{parent => (<>
-        <Repos parent={parent} />
-      </>)}</FocusableSection>
-      <div class="text-indigo-200">{lastPressed()}</div>
+      <div class="flex-1 flex overflow-hidden border-t border-stone-700 items-stretch">
+        <div class="flex-[20%]">
+          <div class="border-r border-stone-700 p-1 min-h-full">
+            <FocusableSection
+              idx={0}
+              parentFocusable={rootFocusable}
+              dir="column"
+              skip
+            >
+              {parent => (<>
+                <Repos parent={parent} onSelect={(repoId) => setRepo(repoId)} />
+              </>)}
+            </FocusableSection>
+          </div>
+        </div>
+        <div class="flex-[80%]">
+          <FocusableSection
+            idx={1}
+            parentFocusable={rootFocusable}
+            dir="column"
+            skip
+          >{parent => (
+            <Show when={repo()}>
+              <Issues parent={parent} repo={repo()!} onSelect={(issueId) => console.log(issueId)} />
+            </Show>
+            )}</FocusableSection>
+        </div>
+      </div>
     </div>
   );
 }
