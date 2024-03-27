@@ -1,10 +1,10 @@
 import { Component, For, JSXElement, Show, createResource, createSignal, onMount } from 'solid-js';
 import { appWindow } from "@tauri-apps/api/window";
 import { Focusable, focusManager, getCurrent, rootFocusable } from "./FocusManager";
-import InputVisualiser from "./InputVisualiser";
 import { registerKeyboardListeners, setGamepadInput } from './InputManager';
 import { audio } from './audio';
 import { GH, GHRepo } from './github';
+import { Nyrkki } from './Icons';
 
 const FocusableButton: Component<{
   onClick: () => void, 
@@ -39,12 +39,11 @@ const FocusableButton: Component<{
           props.parentFocusable.children[props.idx] = self as Focusable;
         }
       }}
-      class='p-1 rounded-md text-stone-400 focus:text-stone-100 text-left focus:bg-stone-600/50'
-      classList={{
-        '': getCurrent().getPath() === self.getPath(),
-      }}
+      class='p-0.5 rounded-md text-stone-400 focus:text-stone-100 text-left focus:bg-gradient-to-br from-[#f7ba2b] to-[#ea5358]'
     >
-      {props.children}
+      <div class="p-1 rounded" classList={{ "bg-stone-800": getCurrent().getPath() === self.getPath() }}>
+        {props.children}
+      </div>
     </button>
   );
 }
@@ -84,7 +83,7 @@ const Repos: Component<{
   parent: Focusable,
   onSelect: (repo: GHRepo) => void
 }> = (props) => {
-  const [repos] = createResource(() => GH.getRepos("Veikkosuhonen"));
+  const [repos] = createResource(() => GH.getRepos("UniversityOfHelsinkiCS"));
 
   return (
     <>
@@ -92,45 +91,61 @@ const Repos: Component<{
       {repos.error && <p>Error: {repos.error.message}</p>}
       <For each={repos()}>{(repo, idx) => (
         <FocusableButton idx={idx()} onClick={() => props.onSelect(repo)} parentFocusable={props.parent}>
-          <div>
-            <h3 class="text-sm text-stone-300">
-              {repo.name}
-            </h3>
-            <p class="text-xs">
-              {repo.description}
-            </p>
-          </div>
+          <h3 class="text-sm">
+            {repo.name}
+          </h3>
+          <p class="text-xs">
+            {repo.description}
+          </p>
+          <Nyrkki />
         </FocusableButton>
       )}</For>
     </>
   );
 }
+
+const RepoView: Component<{
+  parent: Focusable,
+}> = (props) => {
+  return (
+    <div>
+      <h1 class="text-xl text-stone-300 mb-2">
+        {repo()?.name}
+      </h1>
+      <p class="text-stone-300 mb-2">
+        {repo()?.description}
+      </p>
+      <Issues parent={props.parent} />
+    </div>
+  );
+}
+
 const Issues: Component<{
   parent: Focusable,
-  repo: GHRepo,
-  onSelect: (issueId: string) => void
 }> = (props) => {
-  const [issues] = createResource(() => GH.getIssues(props.repo.name, props.repo.owner));
+  const [issues] = createResource(() => repo() ? GH.getIssues(repo()!.name, repo()!.owner.login) : []);
 
   return (
     <>
       {issues.loading && <p>Loading...</p>}
       {issues.error && <p>Error: {issues.error.message}</p>}
-      <For each={issues()}>{(issue, idx) => (
-        <FocusableButton idx={idx()} onClick={() => props.onSelect(issue.id)} parentFocusable={props.parent}>
-          <div>
-            <h3 class="text-sm text-stone-300">
-              {issue.title}
-            </h3>
-          </div>
+      <For 
+        each={issues()}
+        fallback={<p class="text-sm text-stone-400">{issues.loading ? "Loading..." : "No issues"}</p>}
+      >{(issue, idx) => (
+        <FocusableButton idx={idx()} onClick={() => console.log(issue)} parentFocusable={props.parent}>
+          <h3 class="text-sm text-stone-300">
+            {issue.title}
+          </h3>
         </FocusableButton>
       )}</For>
     </>
   );
 }
-function App() {
-  const [repo, setRepo] = createSignal<GHRepo|null>(null);
 
+const [repo, setRepo] = createSignal<GHRepo|null>(null);
+
+function App() {
   onMount(() => {
     const unlistenKeyboard = registerKeyboardListeners()
 
@@ -178,7 +193,7 @@ function App() {
             skip
           >{parent => (
             <Show when={repo()}>
-              <Issues parent={parent} repo={repo()!} onSelect={(issueId) => console.log(issueId)} />
+              <RepoView parent={parent} />
             </Show>
             )}</FocusableSection>
         </div>

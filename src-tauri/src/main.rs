@@ -157,7 +157,8 @@ fn init_gamepad(window: Window) -> Result<(), String> {
 async fn run_gh_cli(args: Vec<String>) -> Result<String, String> {
     println!("Running gh command: {:?}", args);
     let mut cmd = std::process::Command::new("gh");
-    let output = cmd.args(args).output().expect("failed to execute gh command");
+    let output = cmd
+        .args(args).output().expect("failed to execute gh command");
 
     let stdout = String::from_utf8(output.stdout).unwrap();
     let stderr = String::from_utf8(output.stderr).unwrap();
@@ -203,7 +204,9 @@ fn create_window(handle: &tauri::AppHandle) -> tauri::Result<tauri::Window> {
 fn main() {
     let builder = tauri::Builder::default();
 
-    builder.setup(move |app| {
+    builder
+        .plugin(tauri_plugin_store::Builder::default().build())
+        .setup(move |app| {
             let window = create_window(&app.handle()).expect("Failed to create window");
 
             #[cfg(target_os = "macos")]
